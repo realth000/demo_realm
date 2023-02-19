@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:realm/realm.dart';
+import 'model.dart';
 
 void main() {
   runApp(const MyApp());
@@ -11,35 +14,18 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Realm Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.purple,
+        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const MyHomePage(title: 'Realm Demo'),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
 
   final String title;
 
@@ -48,68 +34,410 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  static const _paddingEdgeInsets = 10.0;
+  static const _headerTextFontSize = 20.0;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
+  final _pageScrollController = ScrollController();
+  final _addFormKey = GlobalKey<FormState>();
+  final _addMakeTextController = TextEditingController();
+  final _addModelTextController = TextEditingController();
+  final _addKiloTextController = TextEditingController();
+  final _queryFormKey = GlobalKey<FormState>();
+  final _queryMakeTextController = TextEditingController();
+  final _queryModelTextController = TextEditingController();
+  final _queryKiloTextController = TextEditingController();
+  final _deleteFormKey = GlobalKey<FormState>();
+  final _deleteMakeTextController = TextEditingController();
+  final _deleteModelTextController = TextEditingController();
+  final _deleteKiloTextController = TextEditingController();
+
+  final _realmService = RealmService();
+
+  final _queryResultTextController = TextEditingController();
+
+  Widget _buildModelInfoCard() => Card(
+        color: Theme.of(context).secondaryHeaderColor,
+        child: Padding(
+          padding: const EdgeInsets.all(_paddingEdgeInsets),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Model info',
+                style: TextStyle(
+                  fontSize: _headerTextFontSize,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '''
+@RealmModel()
+class $Car {
+  @PrimaryKey()
+  late ObjectId id;
+  late String make;
+  late String model;
+  int? kilometers = 500;
+}''',
+                      textAlign: TextAlign.left,
+                    ),
+                  ),
+                ],
+              ),
+              Text(_realmService.path()),
+            ],
+          ),
+        ),
+      );
+
+  Widget _buildAddCard() => Card(
+        color: Theme.of(context).secondaryHeaderColor,
+        child: Padding(
+          padding: const EdgeInsets.all(_paddingEdgeInsets),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Add items',
+                style: TextStyle(
+                  fontSize: _headerTextFontSize,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              smallSpace(),
+              Form(
+                key: _addFormKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      controller: _addMakeTextController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Make',
+                      ),
+                      validator: (v) =>
+                          v!.trim().isNotEmpty ? null : 'Need car make',
+                    ),
+                    smallSpace(),
+                    TextFormField(
+                      controller: _addModelTextController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Model',
+                      ),
+                      validator: (v) =>
+                          v!.trim().isNotEmpty ? null : 'Need car model',
+                    ),
+                    smallSpace(),
+                    TextFormField(
+                      controller: _addKiloTextController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Kilometers (optional)',
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ],
+                ),
+              ),
+              smallSpace(),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add'),
+                      onPressed: () {
+                        if (_addFormKey.currentState == null ||
+                            !_addFormKey.currentState!.validate()) {
+                          return;
+                        }
+                        _realmService.add(
+                          _addMakeTextController.text,
+                          _addModelTextController.text,
+                          kilometers: int.parse(_addKiloTextController.text),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+
+  Widget _buildQueryCard() => Card(
+        color: Theme.of(context).secondaryHeaderColor,
+        child: Padding(
+          padding: const EdgeInsets.all(_paddingEdgeInsets),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Query cars',
+                style: TextStyle(
+                  fontSize: _headerTextFontSize,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              smallSpace(),
+              Form(
+                key: _queryFormKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      controller: _queryMakeTextController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Make',
+                      ),
+                    ),
+                    smallSpace(),
+                    TextFormField(
+                      controller: _queryModelTextController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Model',
+                      ),
+                    ),
+                    smallSpace(),
+                    TextFormField(
+                      controller: _queryKiloTextController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Kilometers (optional)',
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ],
+                ),
+              ),
+              smallSpace(),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.saved_search),
+                      label: const Text('Query'),
+                      onPressed: () {
+                        String syntax = '';
+                        if (_queryMakeTextController.text.isNotEmpty) {
+                          syntax = 'make == "${_queryMakeTextController.text}"';
+                        }
+                        if (_queryModelTextController.text.isNotEmpty) {
+                          if (syntax.isNotEmpty) {
+                            syntax +=
+                                ' AND model == "${_queryModelTextController.text}"';
+                          } else {
+                            syntax =
+                                'model == "${_queryModelTextController.text}"';
+                          }
+                        }
+                        if (_queryKiloTextController.text.isNotEmpty) {
+                          if (syntax.isNotEmpty) {
+                            syntax +=
+                                ' AND kilometers == "${_queryKiloTextController.text}"';
+                          } else {
+                            syntax =
+                                'kilometers == "${_queryKiloTextController.text}"';
+                          }
+                        }
+                        final queryResult = <String>[];
+                        _realmService.query(syntax).forEach((result) {
+                          queryResult.add(result.toString());
+                        });
+                        setState(() {
+                          _queryResultTextController.text =
+                              queryResult.join('\n');
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              smallSpace(),
+              TextField(
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                ),
+                controller: _queryResultTextController,
+                readOnly: true,
+                minLines: 5,
+                maxLines: 10,
+              ),
+            ],
+          ),
+        ),
+      );
+
+  Widget _buildDeleteCard() => Card(
+        color: Theme.of(context).secondaryHeaderColor,
+        child: Padding(
+          padding: const EdgeInsets.all(_paddingEdgeInsets),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Delete cars',
+                style: TextStyle(
+                  fontSize: _headerTextFontSize,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              smallSpace(),
+              Form(
+                key: _deleteFormKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      controller: _deleteMakeTextController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Make',
+                      ),
+                    ),
+                    smallSpace(),
+                    TextFormField(
+                      controller: _deleteModelTextController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Model',
+                      ),
+                    ),
+                    smallSpace(),
+                    TextFormField(
+                      controller: _deleteKiloTextController,
+                      decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          labelText: 'Kilometers (optional)'),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    )
+                  ],
+                ),
+              ),
+              smallSpace(),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.delete),
+                      label: const Text('Delete'),
+                      onPressed: () {
+                        String syntax = '';
+                        if (_deleteMakeTextController.text.isNotEmpty) {
+                          syntax =
+                              'make == "${_deleteMakeTextController.text}"';
+                        }
+                        if (_deleteModelTextController.text.isNotEmpty) {
+                          if (syntax.isNotEmpty) {
+                            syntax +=
+                                ' AND model == "${_deleteModelTextController.text}"';
+                          } else {
+                            syntax =
+                                'model == "${_queryModelTextController.text}"';
+                          }
+                        }
+                        if (_deleteKiloTextController.text.isNotEmpty) {
+                          if (syntax.isNotEmpty) {
+                            syntax +=
+                                ' AND kilometers == "${_deleteKiloTextController.text}"';
+                          } else {
+                            syntax =
+                                'kilometers == "${_deleteKiloTextController.text}"';
+                          }
+                        }
+                        print(
+                            'delete ${_realmService.delete(syntax) ? "success" : "failed"}');
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+      body: Scrollbar(
+        controller: _pageScrollController,
+        child: SingleChildScrollView(
+          controller: _pageScrollController,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _buildModelInfoCard(),
+              _buildAddCard(),
+              _buildQueryCard(),
+              _buildDeleteCard(),
+            ],
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
+  }
+}
+
+SizedBox smallSpace() => const SizedBox(
+      width: 10,
+      height: 10,
+    );
+
+class RealmService {
+  final config = Configuration.local([Car.schema]);
+  late final _realm = Realm(config);
+
+  String path() => _realm.config.path;
+
+  void add(String make, String model, {int? kilometers}) {
+    try {
+      _realm.write(() {
+        _realm.add(
+          Car(ObjectId(), make, model, kilometers: kilometers),
+        );
+      });
+    } finally {}
+  }
+
+  List<Car> query(String querySyntax) {
+    if (querySyntax.isEmpty) {
+      return _realm.all<Car>().toList();
+    }
+    return _realm.all<Car>().query(querySyntax).toList();
+  }
+
+  bool delete(String deleteSyntax) {
+    if (deleteSyntax.isEmpty) {
+      return false;
+    }
+    final targetObjs = query(deleteSyntax);
+    if (targetObjs.isEmpty) {
+      return false;
+    }
+    _realm.write(() {
+      for (final obj in targetObjs) {
+        final item = _realm.find<Car>(obj.id);
+        if (item == null) {
+          continue;
+        }
+        _realm.delete<Car>(obj);
+      }
+    });
+    return true;
   }
 }
